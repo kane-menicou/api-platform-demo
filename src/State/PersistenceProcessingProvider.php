@@ -13,35 +13,48 @@ use ApiPlatform\State\ProcessorInterface;
 use ApiPlatform\State\ProviderInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-abstract readonly class PersistenceProcessingProvider implements ProviderInterface, ProcessorInterface
+use function get_class;
+
+/**
+ * @template D of object
+ * @template E of object
+ *
+ * @implements ProviderInterface<D>
+ * @implements ProcessorInterface<D, D>
+ */
+abstract readonly class PersistenceProcessingProvider implements ProviderInterface, ProcessorInterface, ResourceDtoTransformer
 {
     /**
      * @param E $entity
      *
      * @return D
      */
-    abstract protected function entityToDto(object $entity): object;
+    abstract protected function entityToDto(object $entity, ResourceDtoTransformer $subTransformer): object;
 
     /**
      * @param D $dto
      *
      * @param E|null $entity (null = create new entity)
      */
-    abstract protected function dtoToEntity(object $dto, ?object $entity): object;
+    abstract protected function dtoToEntity(object $dto, ?object $entity, ResourceDtoTransformer $subTransformer): object;
 
     /**
      * @return class-string<E>
      */
     abstract protected function getEntityClass(): string;
 
+    /**
+     * @return class-string<D>
+     */
+    abstract protected function getDtoClass(): string;
+
     public function __construct(
-        #[Autowire(service: ItemProvider::class)] private ProviderInterface       $itemProvider,
+        #[Autowire(service: ItemProvider::class)] private ProviderInterface $itemProvider,
         #[Autowire(service: CollectionProvider::class)] private ProviderInterface $collectionProvider,
-        protected EntityManagerInterface                                          $entityManager,
-    )
-    {
+        #[Autowire(service: DelegatingResourceDtoTransformer::class)] private ResourceDtoTransformer $subTransformer,
+        private EntityManagerInterface $entityManager,
+    ) {
     }
 
     final public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = [])
@@ -55,7 +68,7 @@ abstract readonly class PersistenceProcessingProvider implements ProviderInterfa
             $entity = null;
         }
 
-        $entity = $this->dtoToEntity($data, $entity);
+        $entity = $this->dtoToEntity($data, $entity, $this->subTransformer);
 
         if ($operation instanceof DeleteOperationInterface) {
             $this->entityManager->remove($entity);
@@ -67,7 +80,7 @@ abstract readonly class PersistenceProcessingProvider implements ProviderInterfa
         $this->entityManager->persist($entity);
         $this->entityManager->flush();
 
-        return $this->entityToDto($entity);
+        return $this->entityToDto($entity, $this->subTransformer);
     }
 
     final public function provide(Operation $operation, array $uriVariables = [], array $context = []): object|array|null
@@ -77,7 +90,7 @@ abstract readonly class PersistenceProcessingProvider implements ProviderInterfa
 
             $entities = $this->collectionProvider->provide($operation, $uriVariables, $context);
             foreach ($entities as $entity) {
-                $dtos[] = $this->entityToDto($entity);
+                $dtos[] = $this->entityToDto($entity, $this->subTransformer);
             }
 
             return $dtos;
@@ -85,14 +98,30 @@ abstract readonly class PersistenceProcessingProvider implements ProviderInterfa
 
         $entity = $this->itemProvider->provide($operation, $uriVariables, $context);
         if ($entity === null) {
-            throw new NotFoundHttpException();
+            return null;
         }
 
-        return $this->entityToDto($entity);
+        return $this->entityToDto($entity, $this->subTransformer);
     }
 
-    final public function getDtoFromEntity(object $entity): object
+    final public function transformEntityToDto(object $entity): object
     {
-        return $this->entityToDto($entity);
+        return $this->entityToDto($entity, $this->subTransformer);
+    }
+
+    final public function transformDtoToEntity(object $dto): object
+    {
+        // TODO: LOCATE IDENTIFIER USING ATTRIBUTE
+        return $this->entityManager->getReference($this->getEntityClass(), $dto->id);
+    }
+
+    final public function supportsDto(object $dto): bool
+    {
+        return get_class($dto) === $this->getDtoClass();
+    }
+
+    final public function supportsEntity(object $entity): bool
+    {
+        return get_class($entity) === $this->getEntityClass();
     }
 }

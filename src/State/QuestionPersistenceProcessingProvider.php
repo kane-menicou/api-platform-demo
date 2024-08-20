@@ -4,48 +4,31 @@ declare(strict_types=1);
 
 namespace App\State;
 
-use ApiPlatform\Doctrine\Orm\State\CollectionProvider;
-use ApiPlatform\Doctrine\Orm\State\ItemProvider;
-use ApiPlatform\State\ProviderInterface;
-use App\Entity\Question;
-use App\Entity\Tag;
-use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use App\ApiResource\Question as QuestionResource;
+use App\Entity\Question as QuestionEntity;
 
 /**
- w
+ * @extends PersistenceProcessingProvider<QuestionResource, QuestionEntity>
  */
-readonly class QuestionPersistenceProcessingProvider extends PersistenceProcessingProvider
+final readonly class QuestionPersistenceProcessingProvider extends PersistenceProcessingProvider
 {
-    public function __construct(
-        #[Autowire(service: ItemProvider::class)] ProviderInterface $itemProvider,
-        #[Autowire(service: CollectionProvider::class)] ProviderInterface $collectionProvider,
-        EntityManagerInterface $entityManager,
-        private TagPersistenceProcessingProvider $tagProvider,
-    ) {
-        parent::__construct($itemProvider, $collectionProvider, $entityManager);
-    }
-
-    protected function entityToDto(object $entity): object
+    protected function entityToDto(object $entity, ResourceDtoTransformer $subTransformer): object
     {
-        $dto = new \App\ApiResource\Question();
+        $dto = new QuestionResource();
         $dto->id = $entity->getId();
         $dto->content = $entity->getContent();
-        $dto->tags = $entity->getTags()->map($this->tagProvider->getDtoFromEntity(...))->toArray();
+        $dto->tags = $entity->getTags()->map($subTransformer->transformEntityToDto(...))->toArray();
 
         return $dto;
     }
 
-    protected function dtoToEntity(object $dto, ?object $entity): object
+    protected function dtoToEntity(object $dto, ?object $entity, ResourceDtoTransformer $subTransformer): object
     {
-        if ($entity === null) {
-            $entity = new Question($dto->id, $dto->content);
-        } else {
-            $entity->setContent($dto->content);
-        }
+        $entity ??= new QuestionEntity($dto->id, $dto->content);
+        $entity->setContent($dto->content);
 
         foreach ($dto->tags as $tag) {
-            $entity->addTag($this->entityManager->getReference(Tag::class, $tag->id));
+            $entity->addTag($subTransformer->transformDtoToEntity($tag));
         }
 
         return $entity;
@@ -53,6 +36,11 @@ readonly class QuestionPersistenceProcessingProvider extends PersistenceProcessi
 
     protected function getEntityClass(): string
     {
-        return Question::class;
+        return QuestionEntity::class;
+    }
+
+    protected function getDtoClass(): string
+    {
+        return QuestionResource::class;
     }
 }

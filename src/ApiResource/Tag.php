@@ -13,8 +13,6 @@ use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ApiResource(
-    input: Question::class,
-    output: Question::class,
     provider: TagPersistenceProcessingProvider::class,
     processor: TagPersistenceProcessingProvider::class,
     stateOptions: new Options(entityClass: TagEntity::class),

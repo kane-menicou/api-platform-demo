@@ -12,8 +12,6 @@ use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[Api\ApiResource(
-    input: Question::class,
-    output: Question::class,
     provider: QuestionPersistenceProcessingProvider::class,
     processor: QuestionPersistenceProcessingProvider::class,
     stateOptions: new Options(entityClass: QuestionEntity::class),
@@ -33,6 +31,6 @@ final class Question
      * @var Tag[]
      */
     #[Api\ApiProperty(example: ['/api/tags/01J5KT28ZCVZSHKS7W5DVQQXKC', '/api/tags/01J5KT28ZCVZSHKS7W5DVQQXKD'])]
-    #[Assert\Length(min: 0, max: 254)]
+    #[Assert\Count(min: 0, max: 254)]
     public array $tags = [];
 }

@@ -4,43 +4,38 @@ declare(strict_types=1);
 
 namespace App\State;
 
-use ApiPlatform\Doctrine\Orm\State\CollectionProvider;
-use ApiPlatform\Doctrine\Orm\State\ItemProvider;
-use ApiPlatform\Metadata\CollectionOperationInterface;
-use ApiPlatform\Metadata\Operation;
-use ApiPlatform\State\ProviderInterface;
-use App\Entity\Question;
-use App\Entity\Tag;
-use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use App\ApiResource\Tag as TagResource;
+use App\Entity\Tag as TagEntity;
 
 /**
- * @extends PersistenceProcessingProvider<\App\ApiResource\Tag, Tag>
+ * @extends PersistenceProcessingProvider<TagResource, TagEntity>
  */
-readonly class TagPersistenceProcessingProvider extends PersistenceProcessingProvider
+final readonly class TagPersistenceProcessingProvider extends PersistenceProcessingProvider
 {
-    protected function entityToDto(object $entity): object
+    protected function entityToDto(object $entity, ResourceDtoTransformer $subTransformer): object
     {
-        $dto = new \App\ApiResource\Tag();
+        $dto = new TagResource();
         $dto->id = $entity->getId();
         $dto->name = $entity->getName();
 
         return $dto;
     }
 
-    protected function dtoToEntity(object $dto, ?object $entity): object
+    protected function dtoToEntity(object $dto, ?object $entity, ResourceDtoTransformer $subTransformer): object
     {
-        if ($entity === null) {
-            $entity = new Tag($dto->id, $dto->name);
-        } else {
-            $entity->setName($dto->name);
-        }
+        $entity ??= new TagEntity($dto->id, $dto->name);
+        $entity->setName($dto->name);
 
         return $entity;
     }
 
     protected function getEntityClass(): string
     {
-        return Tag::class;
+        return TagEntity::class;
+    }
+
+    protected function getDtoClass(): string
+    {
+        return TagResource::class;
     }
 }
